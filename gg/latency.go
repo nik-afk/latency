@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -14,33 +15,43 @@ func main() {
 		Timeout: 10 * time.Second,
 	}
 
-	var totalLatency int64
-	var minLatency int64 = -1
-	var maxLatency int64
-	var allLatencies []int64
+	var (
+		totalLatency int64
+		minLatency   int64 = -1
+		maxLatency   int64
+		allLatencies []int64
+		mu           sync.Mutex
+		wg           sync.WaitGroup
+	)
 
 	for i := 1; i <= 10; i++ {
-		startTime := time.Now()
+		wg.Add(1)
+		go func(requestNum int) {
+			defer wg.Done()
 
-		req, err := http.NewRequest("GET", fullURL, nil)
-		if err != nil {
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
+			startTime := time.Now()
 
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("x-gg-client", "v:1 l:ru s:mjk78bk4")
+			req, err := http.NewRequest("GET", fullURL, nil)
+			if err != nil {
+				return
+			}
 
-		resp, err := client.Do(req)
-		latency := time.Since(startTime).Milliseconds()
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("x-gg-client", "v:1 l:ru s:mjk78bk4")
 
-		if err != nil {
-		} else {
+			resp, err := client.Do(req)
+			latency := time.Since(startTime).Milliseconds()
+
+			if err != nil {
+				return
+			}
+
 			statusCode := resp.StatusCode
 
 			body, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
 
+			mu.Lock()
 			totalLatency += latency
 			allLatencies = append(allLatencies, latency)
 
@@ -50,17 +61,16 @@ func main() {
 			if latency > maxLatency {
 				maxLatency = latency
 			}
+			mu.Unlock()
 
-			fmt.Printf("#%d %s Статус: %d | мс: %v\n", i, "", statusCode, latency)
+			fmt.Printf("#%d %s Статус: %d | мс: %v\n", requestNum, "", statusCode, latency)
 			// fmt.Printf("Ответ:\n%s\n", string(body))
 			// fmt.Println()
 			_ = body
-		}
-
-		if i < 10 {
-			time.Sleep(100 * time.Millisecond)
-		}
+		}(i)
 	}
+
+	wg.Wait()
 
 	fmt.Printf("\nВсе мс: %v\n", allLatencies)
 	fmt.Printf("Средняя мс: %v\n", float64(totalLatency)/float64(len(allLatencies)))
