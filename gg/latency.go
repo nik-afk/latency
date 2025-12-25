@@ -17,13 +17,14 @@ func main() {
 	var totalLatency int64
 	var minLatency int64 = -1
 	var maxLatency int64
+	var allLatencies []int64
 
 	for i := 1; i <= 10; i++ {
 		startTime := time.Now()
 
 		req, err := http.NewRequest("GET", fullURL, nil)
 		if err != nil {
-			time.Sleep(1 * time.Second)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 
@@ -41,6 +42,7 @@ func main() {
 			resp.Body.Close()
 
 			totalLatency += latency
+			allLatencies = append(allLatencies, latency)
 
 			if minLatency == -1 || latency < minLatency {
 				minLatency = latency
@@ -56,9 +58,10 @@ func main() {
 		}
 
 		if i < 10 {
-			time.Sleep(1 * time.Second)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 
-	fmt.Printf("Средняя мс: %v\n", float64(totalLatency)/10.0)
+	fmt.Printf("\nВсе мс: %v\n", allLatencies)
+	fmt.Printf("Средняя мс: %v\n", float64(totalLatency)/float64(len(allLatencies)))
 }
